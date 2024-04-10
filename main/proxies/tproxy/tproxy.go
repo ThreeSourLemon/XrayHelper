@@ -150,53 +150,53 @@ func createProxyChain(ipv6 bool) error {
 	if currentIpt == nil {
 		return e.New("get iptables failed").WithPrefix(tagTproxy)
 	}
-	if err := currentIpt.NewChain("mangle", "PROXY"); err != nil {
+	if err := currentIpt.NewChain("nat", "PROXY"); err != nil {
 		return e.New("create "+currentProto+" mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 	}
 	// bypass dummy
 	if currentProto == "ipv6" && useDummy {
-		if err := currentIpt.Append("mangle", "PROXY", "-o", common.DummyDevice, "-j", "RETURN"); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-o", common.DummyDevice, "-j", "RETURN"); err != nil {
 			return e.New("ignore dummy interface "+common.DummyDevice+" on "+currentProto+" mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
 	}
 	// bypass ignore list
 	for _, ignore := range builds.Config.Proxy.IgnoreList {
-		if err := currentIpt.Append("mangle", "PROXY", "-o", ignore, "-j", "RETURN"); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-o", ignore, "-j", "RETURN"); err != nil {
 			return e.New("apply ignore interface "+ignore+" on "+currentProto+" mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
 	}
 	// bypass intraNet list
 	if currentProto == "ipv4" {
 		for _, intraIp := range common.IntraNet {
-			if err := currentIpt.Append("mangle", "PROXY", "-d", intraIp, "-j", "RETURN"); err != nil {
+			if err := currentIpt.Append("nat", "PROXY", "-d", intraIp, "-j", "RETURN"); err != nil {
 				return e.New("bypass intraNet "+intraIp+" on "+currentProto+" mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 			}
 		}
 	} else {
 		for _, intraIp6 := range common.IntraNet6 {
-			if err := currentIpt.Append("mangle", "PROXY", "-d", intraIp6, "-j", "RETURN"); err != nil {
+			if err := currentIpt.Append("nat", "PROXY", "-d", intraIp6, "-j", "RETURN"); err != nil {
 				return e.New("bypass intraNet "+intraIp6+" on "+currentProto+" mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 			}
 		}
 		if !useDummy {
 			for _, external := range common.ExternalIPv6 {
-				if err := currentIpt.Append("mangle", "PROXY", "-d", external+"/32", "-j", "RETURN"); err != nil {
+				if err := currentIpt.Append("nat", "PROXY", "-d", external+"/32", "-j", "RETURN"); err != nil {
 					return e.New("bypass externalIPv6 "+external+" on "+currentProto+" mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 				}
 			}
 		}
 	}
 	// bypass Core itself
-	if err := currentIpt.Append("mangle", "PROXY", "-m", "owner", "--gid-owner", common.CoreGid, "-j", "RETURN"); err != nil {
+	if err := currentIpt.Append("nat", "PROXY", "-m", "owner", "--gid-owner", common.CoreGid, "-j", "RETURN"); err != nil {
 		return e.New("bypass core gid on "+currentProto+" mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 	}
 	// start processing proxy rules
 	// if PkgList has no package, should proxy everything
 	if len(builds.Config.Proxy.PkgList) == 0 {
-		if err := currentIpt.Append("mangle", "PROXY", "-p", "tcp", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-p", "tcp", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 			return e.New("create local applications proxy on "+currentProto+" tcp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
-		if err := currentIpt.Append("mangle", "PROXY", "-p", "udp", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-p", "udp", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 			return e.New("create local applications proxy on "+currentProto+" udp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
 	} else if builds.Config.Proxy.Mode == "blacklist" {
@@ -207,15 +207,15 @@ func createProxyChain(ipv6 bool) error {
 				log.HandleDebug(err)
 				continue
 			}
-			if err := currentIpt.Insert("mangle", "PROXY", 1, "-m", "owner", "--uid-owner", uid, "-j", "RETURN"); err != nil {
+			if err := currentIpt.Insert("nat", "PROXY", 1, "-m", "owner", "--uid-owner", uid, "-j", "RETURN"); err != nil {
 				return e.New("bypass package "+pkg+" on "+currentProto+" mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 			}
 		}
 		// allow others
-		if err := currentIpt.Append("mangle", "PROXY", "-p", "tcp", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-p", "tcp", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 			return e.New("create local applications proxy on "+currentProto+" tcp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
-		if err := currentIpt.Append("mangle", "PROXY", "-p", "udp", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-p", "udp", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 			return e.New("create local applications proxy on "+currentProto+" udp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
 	} else if builds.Config.Proxy.Mode == "whitelist" {
@@ -226,25 +226,25 @@ func createProxyChain(ipv6 bool) error {
 				log.HandleDebug(err)
 				continue
 			}
-			if err := currentIpt.Append("mangle", "PROXY", "-p", "tcp", "-m", "owner", "--uid-owner", uid, "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+			if err := currentIpt.Append("nat", "PROXY", "-p", "tcp", "-m", "owner", "--uid-owner", uid, "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 				return e.New("create package "+pkg+" proxy on "+currentProto+" tcp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 			}
-			if err := currentIpt.Append("mangle", "PROXY", "-p", "udp", "-m", "owner", "--uid-owner", uid, "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+			if err := currentIpt.Append("nat", "PROXY", "-p", "udp", "-m", "owner", "--uid-owner", uid, "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 				return e.New("create package "+pkg+" proxy on "+currentProto+" udp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 			}
 		}
 		// allow root user(eg: magisk, ksud, netd...)
-		if err := currentIpt.Append("mangle", "PROXY", "-p", "tcp", "-m", "owner", "--uid-owner", "0", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-p", "tcp", "-m", "owner", "--uid-owner", "0", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 			return e.New("create root user proxy on "+currentProto+" tcp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
-		if err := currentIpt.Append("mangle", "PROXY", "-p", "udp", "-m", "owner", "--uid-owner", "0", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-p", "udp", "-m", "owner", "--uid-owner", "0", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 			return e.New("create root user proxy on "+currentProto+" udp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
 		// allow dns_tether user(eg: dnsmasq...)
-		if err := currentIpt.Append("mangle", "PROXY", "-p", "tcp", "-m", "owner", "--uid-owner", "1052", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-p", "tcp", "-m", "owner", "--uid-owner", "1052", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 			return e.New("create dns_tether user proxy on "+currentProto+" tcp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
-		if err := currentIpt.Append("mangle", "PROXY", "-p", "udp", "-m", "owner", "--uid-owner", "1052", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+		if err := currentIpt.Append("nat", "PROXY", "-p", "udp", "-m", "owner", "--uid-owner", "1052", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 			return e.New("create dns_tether user proxy on "+currentProto+" udp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
 	} else {
@@ -253,22 +253,22 @@ func createProxyChain(ipv6 bool) error {
 	// allow IntraList
 	for _, intra := range builds.Config.Proxy.IntraList {
 		if (currentProto == "ipv4" && !common.IsIPv6(intra)) || (currentProto == "ipv6" && common.IsIPv6(intra)) {
-			if err := currentIpt.Insert("mangle", "PROXY", 1, "-p", "tcp", "-d", intra, "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+			if err := currentIpt.Insert("nat", "PROXY", 1, "-p", "tcp", "-d", intra, "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 				return e.New("allow intra "+intra+" on "+currentProto+" tcp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 			}
-			if err := currentIpt.Insert("mangle", "PROXY", 1, "-p", "udp", "-d", intra, "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+			if err := currentIpt.Insert("nat", "PROXY", 1, "-p", "udp", "-d", intra, "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 				return e.New("allow intra "+intra+" on "+currentProto+" udp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 			}
 		}
 	}
 	// mark all dns request (except mihomo)
 	if builds.Config.XrayHelper.CoreType != "mihomo" && builds.Config.XrayHelper.CoreType != "clash.meta" {
-		if err := currentIpt.Insert("mangle", "PROXY", 1, "-p", "udp", "-m", "owner", "!", "--gid-owner", common.CoreGid, "--dport", "53", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
+		if err := currentIpt.Insert("nat", "PROXY", 1, "-p", "udp", "-m", "owner", "!", "--gid-owner", common.CoreGid, "--dport", "53", "-j", "MARK", "--set-mark", common.TproxyMarkId); err != nil {
 			return e.New("mark all dns request on "+currentProto+" udp mangle chain PROXY failed, ", err).WithPrefix(tagTproxy)
 		}
 	}
 	// apply rules to OUTPUT
-	if err := currentIpt.Append("mangle", "OUTPUT", "-j", "PROXY"); err != nil {
+	if err := currentIpt.Append("nat", "OUTPUT", "-j", "PROXY"); err != nil {
 		return e.New("apply mangle chain PROXY to OUTPUT failed, ", err).WithPrefix(tagTproxy)
 	}
 	return nil
